@@ -16,7 +16,7 @@ const (
 	host ="localhost"
 	port = 5432
 	user ="postgres"
-	Password = "tarekandamr12/"
+	Password = ""
 	dbname = "article_hub";
 )
 /* Cookie Set-up and Information*/
@@ -42,15 +42,16 @@ type Users struct {
 Responsible for Home Page Requests
 */
 func HomeHandler(Response http.ResponseWriter, Request *http.Request){
-template,_ := template.ParseFiles("Home.html")
+
 session, _ := store.Get(Request, "cookie-name")
 auth, ok := session.Values["authenticated"].(bool)
 if  !ok || !auth {
-	http.Error(Response, "Forbidden", http.StatusForbidden)
+	http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
 	return
 }
+Request.ParseForm()
+template,_ := template.ParseFiles("Home.html")
 template.Execute(Response,nil)
-
 }
 
 /*
@@ -85,11 +86,14 @@ func SignupHandler(Response http.ResponseWriter, Request *http.Request){
 	Responsible for Logging in Page Requests
 	*/
 func LoginHandler(Response http.ResponseWriter,Request *http.Request){
+
 	var template_name string
+	var flag bool
 	template_name = "login.html"
 	name := Request.FormValue("username")
 	password := Request.FormValue("Password")
-	flag := login(name,password)
+		if loginvalidation(name,password) != false {
+		flag := login(name,password)
 
 	if flag{
 		template_name = "Home.html"
@@ -97,7 +101,7 @@ func LoginHandler(Response http.ResponseWriter,Request *http.Request){
 		session.Values["authenticated"] = true
 		session.Save(Request, Response)
 	}
-
+		}
 	template,_ := template.ParseFiles(template_name)
 	template.Execute(Response,flag)
 }
@@ -145,6 +149,21 @@ func Signupvalidation(username string, FirstName string, LastName string, Email 
 	return "valid"; 
 }
 
+
+/* Validating the User Input when logging in
+*/
+func loginvalidation(username string, password string)bool{
+	usernamevalidation, _ := regexp.MatchString("[a-zA-Z0-9]{3,20}",username)
+	PasswordValidation, _ := regexp.MatchString("[a-zA-Z0-9]{10,}",password) 
+	if(usernamevalidation != true){
+		return false
+	}
+	if(PasswordValidation != true){
+		return false
+	}
+	return true
+}
+
 /*
 Signup function responsible for registering a user into the database
 */
@@ -181,9 +200,9 @@ func login(username string , password string)bool{
 	  sqlStatement := `Select username from users where username= $1 and password = $2`
 	  //hashedpassword := hash(password)
 	  row,err := db.Query(sqlStatement,username,password)
-
 	  if(err != nil){
 		  panic(err)
+
 	  }
 	  flag := row.Next()
 	  return flag
