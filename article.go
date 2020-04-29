@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	_"github.com/lib/pq"
 	"github.com/gorilla/sessions"
+	"time"
 )
 /* DataBase connections and paramter's
 */
@@ -49,7 +50,18 @@ if  !ok || !auth {
 	http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
 	return
 }
+
 Request.ParseForm()
+Title := Request.FormValue("Title")
+Content := Request.FormValue("Content")
+flag := ArticleValidation(Title,Content)
+
+if flag{
+	date := time.Now()
+	DateFormat := date.Format("01-02-2006 15:04:05 Monday")
+	write_article(Title,Content,DateFormat,session.Values["username"])
+}
+
 template,_ := template.ParseFiles("Home.html")
 template.Execute(Response,nil)
 }
@@ -99,6 +111,7 @@ func LoginHandler(Response http.ResponseWriter,Request *http.Request){
 		template_name = "Home.html"
 		session, _ := store.Get(Request, "cookie-name")
 		session.Values["authenticated"] = true
+		session.Values["username"] = name
 		session.Save(Request, Response)
 	}
 		}
@@ -116,6 +129,19 @@ func LogoutHandler(Response http.ResponseWriter,Request *http.Request){
 	template.Execute(Response,nil)
 }
 
+func ArticleValidation(Title string, Content string)bool{
+	TitleValidation,_ := regexp.MatchString("[a-zA-Z0-9]{1,}",Title)
+	ContentValidation,_ := regexp.MatchString("[a-zA-Z0-9]{1,}",Content)
+	
+	if TitleValidation != true{
+		return false
+	}
+
+	if ContentValidation != true{
+		return false
+	}
+	return true
+}
 /*
 Validate the User input when trying to sign-up
 */
@@ -189,7 +215,7 @@ func singup(username string, firstname string, lastname string, email string, pa
 
 
 	/*
-log in the user if he/she has an existing account 
+log the user in if he/she has an existing account 
 */
 func login(username string , password string)bool{
 	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
@@ -209,6 +235,24 @@ func login(username string , password string)bool{
 	}
 
 /*
+Add the Article in the DataBase
+*/
+func write_article(title string,content string,date string,username string){
+	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
+	db,err := sql.Open("postgres",postgresconnection) 
+	if err != nil {
+		panic(err)
+	  }	
+	  sqlStatement := `insert into article (title , content, date,username)
+					  values ($1,$2,$3,$4)`
+	  row,err := db.Query(sqlStatement, title,content,date,username)
+	  if err != nil {
+		panic(err)
+		fmt.Println(row)
+	  }
+
+}
+/*
 Hashing Password in the Database
 */
 func hash(s string) string{
@@ -225,5 +269,4 @@ func main() {
 	http.HandleFunc("/logout",  LogoutHandler )
 
 	http.ListenAndServe(":8000",nil)
-
 }
