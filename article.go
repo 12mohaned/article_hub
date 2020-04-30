@@ -17,7 +17,7 @@ const (
 	host ="localhost"
 	port = 5432
 	user ="postgres"
-	Password = ""
+	Password = "tarekandamr12/"
 	dbname = "article_hub";
 )
 /* Cookie Set-up and Information*/
@@ -28,8 +28,9 @@ var (
 
 type Article struct {
 	Title string
-	Contnet string 
+	Content string 
 	date 	string 
+	user string
 }
 
 type Users struct {
@@ -59,13 +60,32 @@ flag := ArticleValidation(Title,Content)
 if flag{
 	date := time.Now()
 	DateFormat := date.Format("01-02-2006 15:04:05 Monday")
-	write_article(Title,Content,DateFormat,session.Values["username"])
+	name := session.Values["username"]
+	data,_ := fmt.Printf("%x",name)
+	write_article(Title,Content,DateFormat,string(data))
 }
 
 template,_ := template.ParseFiles("Home.html")
 template.Execute(Response,nil)
 }
 
+/*
+Route to the User profile which contain the Articles he wrote
+*/
+func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
+	session, _ := store.Get(Request, "cookie-name")
+	auth, ok := session.Values["authenticated"].(bool)
+	// var Articles []Article
+	if  !ok || !auth {
+		http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
+		return
+	}
+	name := session.Values["username"]
+	data,_ := fmt.Printf("%x",name)
+	getArticles(string(data))
+	template,_ := template.ParseFiles("profile.html")
+	template.Execute(Response,nil)
+}
 /*
 Page where user Sign up
 */
@@ -88,6 +108,10 @@ func SignupHandler(Response http.ResponseWriter, Request *http.Request){
 		flag = singup(user.UserName, user.FirstName, user.LastName, user.Email, user.password)
 		if flag {
 			template_name = "Home.html"
+			session, _ := store.Get(Request, "cookie-name")
+			session.Values["authenticated"] = true
+			session.Values["username"] = name
+			session.Save(Request, Response)
 		}
 	}
 	template,_ := template.ParseFiles(template_name)
@@ -250,7 +274,39 @@ func write_article(title string,content string,date string,username string){
 		panic(err)
 		fmt.Println(row)
 	  }
+}
+/* Return the Article of a user*/
+func getArticles(username string) []Article{
+	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
+	db,err := sql.Open("postgres",postgresconnection) 
+	if err != nil {
+		panic(err)
+	  }	
+	  sqlStatement := `select title, content, date from article where username=$1`
+	  rows,err := db.Query(sqlStatement, username)
+	 if err != nil{
+		panic(err) 
+		fmt.Println(rows)
+	 }
+	 var Articles []Article 
+	 i:= 0
+	 defer rows.Close()
+	 for rows.Next(){
+		 var title string
+		 var content string
+		 var date string
+		data := rows.Scan(&title, &content, &date)
+		if data != nil{
 
+		}
+		fmt.Println(content)
+
+		i++
+	 }
+if(i > 0){
+	return Articles
+}
+return nil
 }
 /*
 Hashing Password in the Database
@@ -264,9 +320,9 @@ func hash(s string) string{
 
 func main() {
 	http.HandleFunc("/Home", HomeHandler)
+	http.HandleFunc("/profile",ProfileHandler)
 	http.HandleFunc("/Signup", SignupHandler)
 	http.HandleFunc("/login",  LoginHandler )
 	http.HandleFunc("/logout",  LogoutHandler )
-
 	http.ListenAndServe(":8000",nil)
 }
