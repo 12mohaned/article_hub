@@ -11,19 +11,19 @@ import (
 	"github.com/gorilla/sessions"
 	"time"
 )
-/* DataBase connections and paramter's
-*/
-const ( 
-	host ="localhost"
-	port = 5432
-	user ="postgres"
-	Password = "tarekandamr12/"
-	dbname = "article_hub";
-)
+
 /* Cookie Set-up and Information*/
 var (
 	key = []byte("super-secret-key")
     store = sessions.NewCookieStore(key)	
+)
+
+const ( 
+	host ="localhost"
+	port = 5432
+	user ="postgres"
+	Password = ""
+	dbname = "article_hub";
 )
 
 type Article struct {
@@ -56,13 +56,12 @@ Request.ParseForm()
 Title := Request.FormValue("Title")
 Content := Request.FormValue("Content")
 flag := ArticleValidation(Title,Content)
-
+date := time.Now()
+DateFormat := date.Format("01-02-2006 15:04:05 Monday")
+name := session.Values["username"]
+data := name.(string)
 if flag{
-	date := time.Now()
-	DateFormat := date.Format("01-02-2006 15:04:05 Monday")
-	name := session.Values["username"]
-	data,_ := fmt.Printf("%x",name)
-	write_article(Title,Content,DateFormat,string(data))
+	Write_article(Title,Content,DateFormat,data)
 }
 
 template,_ := template.ParseFiles("Home.html")
@@ -81,8 +80,8 @@ func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
 		return
 	}
 	name := session.Values["username"]
-	data,_ := fmt.Printf("%x",name)
-	getArticles(string(data))
+	data := name.(string)
+	getArticles(data)
 	template,_ := template.ParseFiles("profile.html")
 	template.Execute(Response,nil)
 }
@@ -105,7 +104,7 @@ func SignupHandler(Response http.ResponseWriter, Request *http.Request){
 	if(verified == "valid"){
 		
 		//hashedpassword := hash(user.password)
-		flag = singup(user.UserName, user.FirstName, user.LastName, user.Email, user.password)
+		flag = Signup(user.UserName, user.FirstName, user.LastName, user.Email, user.password)
 		if flag {
 			template_name = "Home.html"
 			session, _ := store.Get(Request, "cookie-name")
@@ -129,7 +128,7 @@ func LoginHandler(Response http.ResponseWriter,Request *http.Request){
 	name := Request.FormValue("username")
 	password := Request.FormValue("Password")
 		if loginvalidation(name,password) != false {
-		flag := login(name,password)
+		flag := Login(name,password)
 
 	if flag{
 		template_name = "Home.html"
@@ -153,6 +152,9 @@ func LogoutHandler(Response http.ResponseWriter,Request *http.Request){
 	template.Execute(Response,nil)
 }
 
+/*
+Validate the Article which is going to Posted by the User
+*/
 func ArticleValidation(Title string, Content string)bool{
 	TitleValidation,_ := regexp.MatchString("[a-zA-Z0-9]{1,}",Title)
 	ContentValidation,_ := regexp.MatchString("[a-zA-Z0-9]{1,}",Content)
@@ -166,6 +168,7 @@ func ArticleValidation(Title string, Content string)bool{
 	}
 	return true
 }
+
 /*
 Validate the User input when trying to sign-up
 */
@@ -212,110 +215,6 @@ func loginvalidation(username string, password string)bool{
 		return false
 	}
 	return true
-}
-
-/*
-Signup function responsible for registering a user into the database
-*/
-func singup(username string, firstname string, lastname string, email string, password string)bool{
-	var flag bool
-	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
-	db,err := sql.Open("postgres",postgresconnection) 
-	if err != nil {
-		panic(err)
-	  }	
-	  
-	  sqlStatement := `INSERT INTO users (username, firstname, lastname, email,password)
-						VALUES ($1, $2, $3, $4,$5)`
-	 row, err := db.Exec(sqlStatement, username,firstname,lastname,  email,password)
-
-	 if err != nil{
-		 panic(err)
-		 fmt.Println(row)
-	 }
-	 flag = true
-	 return flag
-	}
-
-
-	/*
-log the user in if he/she has an existing account 
-*/
-func login(username string , password string)bool{
-	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
-	db,err := sql.Open("postgres",postgresconnection) 
-	if err != nil {
-		panic(err)
-	  }	
-	  sqlStatement := `Select username from users where username= $1 and password = $2`
-	  //hashedpassword := hash(password)
-	  row,err := db.Query(sqlStatement,username,password)
-	  if(err != nil){
-		  panic(err)
-
-	  }
-	  flag := row.Next()
-	  return flag
-	}
-
-/*
-Add the Article in the DataBase
-*/
-func write_article(title string,content string,date string,username string){
-	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
-	db,err := sql.Open("postgres",postgresconnection) 
-	if err != nil {
-		panic(err)
-	  }	
-	  sqlStatement := `insert into article (title , content, date,username)
-					  values ($1,$2,$3,$4)`
-	  row,err := db.Query(sqlStatement, title,content,date,username)
-	  if err != nil {
-		panic(err)
-		fmt.Println(row)
-	  }
-}
-/* Return the Article of a user*/
-func getArticles(username string) []Article{
-	postgresconnection := "user="+user+ " " + "password=" +Password + " " + "dbname="+dbname + " " + "sslmode=disable"
-	db,err := sql.Open("postgres",postgresconnection) 
-	if err != nil {
-		panic(err)
-	  }	
-	  sqlStatement := `select title, content, date from article where username=$1`
-	  rows,err := db.Query(sqlStatement, username)
-	 if err != nil{
-		panic(err) 
-		fmt.Println(rows)
-	 }
-	 var Articles []Article 
-	 i:= 0
-	 defer rows.Close()
-	 for rows.Next(){
-		 var title string
-		 var content string
-		 var date string
-		data := rows.Scan(&title, &content, &date)
-		if data != nil{
-
-		}
-		fmt.Println(content)
-
-		i++
-	 }
-if(i > 0){
-	return Articles
-}
-return nil
-}
-/*
-Hashing Password in the Database
-*/
-func hash(s string) string{
-	h := sha256.New()
-	h.Write([]byte(s))
-	hashstring,_ := fmt.Printf("%x", h.Sum(nil))
-	return string(hashstring)
 }
 
 func main() {
