@@ -10,7 +10,7 @@ import (
 	"time"
 	"regexp"
 	 "github.com/gorilla/mux"
-)
+	)
 /* Cookie Set-up and Information*/
 var (
 	key = []byte("super-secret-key")
@@ -57,6 +57,50 @@ if  !ok || !auth {
 template,_ := template.ParseFiles("Home.html")
 template.Execute(Response,nil)
 }
+/**
+* ProfileHanlder
+* * the Profile View where users can see their Articles
+* Routing the User when editing the post
+*/
+func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
+	var template_name string
+	template_name = "profile.html"
+	// var template_name string
+	session, _ := store.Get(Request, "cookie-name")
+	auth, ok := session.Values["authenticated"].(bool)	
+	if  !ok || !auth {
+		http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
+		return
+	}
+	if Request.Method == "GET"{
+	
+	name := session.Values["username"]
+	data := name.(string)
+	articles := Articles{Articles : getArticles(data)}
+	vars := mux.Vars(Request)
+	title := vars["title"]
+	flag := Checktitle(title,data)
+
+	//check if the title of article is found in the database or not 
+	if len(flag) != 0{
+		template_name = "post.html"
+		articles = Articles {Articles:flag}
+		Request.ParseForm()
+		Title := Request.FormValue("Title")
+		Content := Request.FormValue("Content")
+		if len(Title) > 0{
+			updateTitle(title,Title)
+		}
+
+		if len(Content) > 0{
+			updateContent(Content,Title)
+		}
+	}
+	template,_ := template.ParseFiles(template_name)
+	template.Execute(Response,articles)
+}
+}
+
 
 func WriteArticleHandler(Response http.ResponseWriter,Request *http.Request){
 	session, _ := store.Get(Request, "cookie-name")
@@ -78,35 +122,6 @@ func WriteArticleHandler(Response http.ResponseWriter,Request *http.Request){
 	}
 	template,_ := template.ParseFiles("writeArticle.html")
 	template.Execute(Response,nil)
-}
-
-/**
-* ProfileHanlder
-* * the Profile View where users can see their Articles
-* Routing the User when editing the post
-*/
-func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
-	session, _ := store.Get(Request, "cookie-name")
-	auth, ok := session.Values["authenticated"].(bool)	
-	if  !ok || !auth {
-		http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
-		return
-	}
-
-	name := session.Values["username"]
-	data := name.(string)
-	articles := Articles{Articles : getArticles(data)}
-	if articles.Articles == nil{
-		http.Error(Response,"No Articles to Show", http.StatusForbidden)
-		return 
-	}
-	vars := mux.Vars(Request)
-	title := vars["title"]
-	flag := Checktitle(title)
-	fmt.Println(flag)
-
-	template,_ := template.ParseFiles("profile.html")
-	template.Execute(Response,articles)
 }
 /**
 *  SignupHandler
@@ -260,7 +275,7 @@ func Login(username string , password string)bool{
 	if err != nil {
 		panic(err)
 	  }	
-	  sqlStatement := `Select username from users where username= $1 and password = $2`
+	  sqlStatement := `Select username from Users where username= $1 and password = $2`
 	  //hashedpassword := hash(password)
 	  row,err := db.Query(sqlStatement,username,password)
 	  if(err != nil){
@@ -282,7 +297,7 @@ func Signup(username string, firstname string, lastname string, email string, pa
 		panic(err)
 		}	
 		  
-	sqlStatement := `INSERT INTO users (username, firstname, lastname, email,password)
+	sqlStatement := `INSERT INTO Users (username, firstname, lastname, email,password)
 				VALUES ($1, $2, $3, $4,$5)`
 	row, err := db.Exec(sqlStatement, username,firstname,lastname,  email,password)	
 	
@@ -306,7 +321,7 @@ func WriteArticle(title string,content string,date string,username string){
 	if err != nil {
 		panic(err)
 		}	
-		sqlStatement := `insert into article (title , content, date,username)
+		sqlStatement := `insert into Article (Title , Content, date,username)
 			 values ($1,$2,$3,$4)`
 		row,err := db.Query(sqlStatement, title,content,date,username)
 		if err != nil {
@@ -314,8 +329,8 @@ func WriteArticle(title string,content string,date string,username string){
 			fmt.Println(username)
 			fmt.Println(row)
 		}
+		fmt.Println(row)
 		}
-
 // /* Return the Article of a user*/
 func getArticles(username string)[]Article{
 	postgresconnection := initConnection()
@@ -323,7 +338,7 @@ func getArticles(username string)[]Article{
 	if err != nil {
 		panic(err)
 	  }	
-	  sqlStatement := `select title, content, date from article where username=$1`
+	  sqlStatement := `select title, content, date from Article where username=$1`
 	  rows,err := db.Query(sqlStatement, username)
 	 if err != nil{
 		panic(err) 
@@ -344,26 +359,68 @@ func getArticles(username string)[]Article{
 	return Articles
 }
 
-func Checktitle(title string)bool{
+func Checktitle(title string,name string )[]Article{
+	postgresconnection := initConnection()
+	db,err := sql.Open("postgres",postgresconnection) 
+	var Articles []Article
+	if err != nil {
+		panic(err)
+	  }	
+	  sqlStatement := `select username, title, content, date from Article where title=$1 and username = $2`
+	  rows,err := db.Query(sqlStatement, title,name)
+	 if err != nil{
+		panic(err) 
+	 }
+	for rows.Next(){
+	var Title string
+	var content string
+	var date string
+	var username string 
+	data := rows.Scan(&username,&Title, &content, &date)
+	article := Article{Title:title, Content:content, date:date, user:username}
+	if data != nil{
+	}
+	Articles = append(Articles,article)
+	}
+	return Articles
+   }
+// /* Update the Title of an Article*/
+func updateTitle(oldtitle string, newtitle string)bool{
 	postgresconnection := initConnection()
 	db,err := sql.Open("postgres",postgresconnection) 
 	if err != nil {
 		panic(err)
 	  }	
-	  sqlStatement := `select title, content, date from article where title=$1`
-	  rows,err := db.Query(sqlStatement, title)
-	 if err != nil{
-		panic(err) 
-	 }
-	 return rows.Next()
+	sqlStatement := `update article set title = $1 where title = $2`
+	rows,err := db.Query(sqlStatement,newtitle,oldtitle)
+	
+	if err != nil{
+		panic(err)
+		fmt.Println(rows)
+	}
+	return true
 }
-
+// /* Update the Content of an Article*/
+func updateContent(content string, title string)bool{
+	postgresconnection := initConnection()
+	db,err := sql.Open("postgres",postgresconnection) 
+	if err != nil {
+		panic(err)
+	  }	
+	sqlStatement := `update article set content = $1 where title = $2`
+	rows,err := db.Query(sqlStatement,content,title)
+	if err != nil{
+		panic(err)
+		fmt.Println(rows)
+	}
+	return true
+}
 
 func main() {
 	mux := mux.NewRouter()
 	mux.HandleFunc("/Home",HomeHandler)
 	mux.HandleFunc("/profile",ProfileHandler)
-	mux.HandleFunc("/profile/edit/{title}",ProfileHandler)
+	mux.HandleFunc("/edit/{title}",ProfileHandler)
 	mux.HandleFunc("/write",WriteArticleHandler)
 	mux.HandleFunc("/Signup",SignupHandler)
 	mux.HandleFunc("/login",LoginHandler )
