@@ -44,6 +44,9 @@ type Articles struct{
 	Articles []Article
 }
 
+type ReadingList struct{
+	Titles [] string
+}
 /*
 Responsible for Home Page Requests
 */
@@ -54,9 +57,14 @@ if  !ok || !auth {
 	http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
 	return
 }
+name := session.Values["username"]
+username := name.(string)
+Titles := getReadingList(username)
+ReadingList := ReadingList{Titles : Titles} 
 template,_ := template.ParseFiles("Home.html")
-template.Execute(Response,nil)
+template.Execute(Response,ReadingList)
 }
+
 /**
 * ProfileHanlder
 * * the Profile View where users can see their Articles
@@ -72,35 +80,45 @@ func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
 		http.Error(Response, "You Should Log in to Access this page", http.StatusForbidden)
 		return
 	}
-	if Request.Method == "GET"{
-	
 	name := session.Values["username"]
 	data := name.(string)
 	articles := Articles{Articles : getArticles(data)}
 	vars := mux.Vars(Request)
 	title := vars["title"]
 	flag := Checktitle(title,data)
-
 	//check if the title of article is found in the database or not 
+	Request.ParseForm()
 	if len(flag) != 0{
 		template_name = "post.html"
 		articles = Articles {Articles:flag}
-		Request.ParseForm()
+	}
+	if Request.Method == "POST" {
 		Title := Request.FormValue("Title")
 		Content := Request.FormValue("Content")
+		//check if title is changed to update it
 		if len(Title) > 0{
 			updateTitle(title,Title)
 		}
-
+		// check if content is changed to update it 
 		if len(Content) > 0{
 			updateContent(Content,Title)
+		}
+		//check if follow button is clicked
+		isClicked := isFollowClicked(Request.FormValue("Follow"))
+		if isClicked {
+			AddFriend(data,data)
+		}
+		//check if Article added to Reading List
+		for i:= 0; i < len(articles.Articles); i++{
+		isClicked = isFavoriteClicked(Request.FormValue(articles.Articles[i].Title))
+		if isClicked{
+			AddReadingList(data,articles.Articles[i].Title,data)
+		}
 		}
 	}
 	template,_ := template.ParseFiles(template_name)
 	template.Execute(Response,articles)
 }
-}
-
 
 func WriteArticleHandler(Response http.ResponseWriter,Request *http.Request){
 	session, _ := store.Get(Request, "cookie-name")
@@ -164,7 +182,6 @@ func SignupHandler(Response http.ResponseWriter, Request *http.Request){
 
 */
 func LoginHandler(Response http.ResponseWriter,Request *http.Request){
-
 	var template_name string
 	var flag bool
 	template_name = "login.html"
@@ -416,6 +433,72 @@ func updateContent(content string, title string)bool{
 	return true
 }
 
+func AddFriend(follower string, following string)bool{
+	postgresconnection := initConnection()
+	db,err := sql.Open("postgres", postgresconnection)
+	if err != nil{
+		panic(err)
+	}
+	sqlStatement := `insert into followers(follower_username, following_username)
+	values($1,$2)`
+	rows,err := db.Query(sqlStatement,follower,following)
+	if err != nil{
+		panic(err)
+		fmt.Println(rows)
+	}
+	return true
+}
+func AddReadingList(Author string, title string, username string)bool{
+	postgresconnection := initConnection()
+	db,err := sql.Open("postgres", postgresconnection)
+	if err != nil{
+		panic(err)
+	}
+	sqlStatement := `insert into readinglist(author,title,username)
+	values($1,$2,$3)`
+	rows,err := db.Query(sqlStatement,Author,title,username)
+	if err != nil{
+		panic(err)
+		fmt.Println(rows)
+	}
+	return true
+}
+
+func getReadingList(username string)[]string{
+	postgresconnection := initConnection()
+	db,err := sql.Open("postgres", postgresconnection)
+	if err != nil{
+		panic(err)
+	}
+	sqlStatement := `Select title from readinglist where username = $1`
+	rows,err := db.Query(sqlStatement,username)
+	if err != nil{
+		panic(err)
+		fmt.Println(rows)
+	}
+	var Titles[] string
+	for rows.Next(){
+		var Title string
+		data := rows.Scan(&Title)
+		if data != nil{
+		}
+		Titles = append(Titles,Title)
+		}
+	return Titles
+}
+func isFollowClicked(value string)bool{
+	if len(value) > 0{
+		return true
+	}
+	return false
+}
+
+func isFavoriteClicked(title string)bool{
+	if(len(title) > 0){
+		return true
+	}
+	return false
+}
 func main() {
 	mux := mux.NewRouter()
 	mux.HandleFunc("/Home",HomeHandler)
