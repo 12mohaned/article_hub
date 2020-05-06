@@ -1,5 +1,6 @@
 <html>
             <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Home</title>
             <style>
             * {box-sizing: border-box;}
             
@@ -55,33 +56,43 @@
                 float: none;
               }
             }
-
-      
+            .ReadingList {
+              width:25%;
+              margin-left:75%;
+              margin-top:5%;
+            }
             </style>
-            <head>
-<link href="//maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-<script src="//maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-<!------ Include the above in your HEAD tag ---------->
-<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.8/css/all.css">
-</head>
+         <head>
+            <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+            <link href="//maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+            <script src="//maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+            <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+             <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+                     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.8/css/all.css">
+            </head>
 <body>
   <div class="header">
     <a href="#default" class="logo">Article-Hub</a>
     <div class="header-right">
       <a class="active" href="/Home">Home</a>
-      <a href="/profile">Your Articles</a>
-      <a href="/about">About</a>
+      <a href="/profile">Profile</a>
+      <a href="/write">Write new Article</a>
       <a href="/logout">Log out</a>
     </div>
   </div>    
 
 
-<form>
-  <input type="text" name = "Title" />
-  <input type ="text" name = "Content" />
-  <input type="submit" />
-</form>
+<div class ="ReadingList">
+  <h4>Reading List</h4>
+  <ul class="list-group">
+      {{range $title := .Titles}}
+
+      <li class="list-group-item">{{$title}}</li>
+
+      {{end}}
+    </ul>
+  </div>
 </body>
 
 </html>
