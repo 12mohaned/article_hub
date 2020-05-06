@@ -70,7 +70,7 @@ template.Execute(Response,ReadingList)
 * * the Profile View where users can see their Articles
 * Routing the User when editing the post
 */
-func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
+func YourProfileHandler(Response http.ResponseWriter, Request *http.Request){
 	var template_name string
 	template_name = "profile.html"
 	// var template_name string
@@ -85,6 +85,7 @@ func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
 	articles := Articles{Articles : getArticles(data)}
 	vars := mux.Vars(Request)
 	title := vars["title"]
+	username := vars["name"]
 	flag := Checktitle(title,data)
 	//check if the title of article is found in the database or not 
 	Request.ParseForm()
@@ -103,23 +104,41 @@ func ProfileHandler(Response http.ResponseWriter, Request *http.Request){
 		if len(Content) > 0{
 			updateContent(Content,Title)
 		}
-		//check if follow button is clicked
-		isClicked := isFollowClicked(Request.FormValue("Follow"))
-		if isClicked {
-			AddFriend(data,data)
 		}
-		//check if Article added to Reading List
-		for i:= 0; i < len(articles.Articles); i++{
-		isClicked = isFavoriteClicked(Request.FormValue(articles.Articles[i].Title))
-		if isClicked{
-			AddReadingList(data,articles.Articles[i].Title,data)
-		}
+		isUserFound := checkuserExists(username)
+	if isUserFound{
+		// if user is navigating his profile
+		if data == username{
+			template_name = "profile.html"
+		// if user is navigating someone else profile
+		}else{
+			GuestProfile(Response,Request,data,username)
+			return 
 		}
 	}
 	template,_ := template.ParseFiles(template_name)
 	template.Execute(Response,articles)
+	}
+	
+func GuestProfile(Response http.ResponseWriter, Request *http.Request, user string, guest string){
+	//check if follow button is clicked
+	isClicked := isFollowClicked(Request.FormValue("Follow"))
+	if isClicked {
+		AddFriend(user,guest)
+	}
+	articles := Articles{Articles : getArticles(guest)}
+	//check if Article added to Reading List
+	for i:= 0; i < len(articles.Articles); i++{
+		isClicked = isFavoriteClicked(Request.FormValue(articles.Articles[i].Title))
+		if isClicked{
+			AddReadingList(guest,articles.Articles[i].Title,user)
+			break
+		}
+	template_name := "guestprofile.html"
+	template,_ := template.ParseFiles(template_name)
+	template.Execute(Response,articles)
 }
-
+}
 func WriteArticleHandler(Response http.ResponseWriter,Request *http.Request){
 	session, _ := store.Get(Request, "cookie-name")
 	auth, ok := session.Values["authenticated"].(bool)
@@ -189,7 +208,8 @@ func LoginHandler(Response http.ResponseWriter,Request *http.Request){
 	password := Request.FormValue("Password")
 		if loginvalidation(name,password) != false {
 		flag := Login(name,password)
-
+		fmt.Println(name)
+		fmt.Println(password)
 	if flag{
 		template_name = "Home.html"
 		session, _ := store.Get(Request, "cookie-name")
@@ -278,7 +298,7 @@ func LogoutHandler(Response http.ResponseWriter,Request *http.Request){
 	session, _ := store.Get(Request, "cookie-name")
 	session.Values["authenticated"] = false
 	session.Save(Request, Response)
-	template,_ := template.ParseFiles("Logout.html")
+	template,_ := template.ParseFiles("login.html")
 	template.Execute(Response,nil)
 }
 
@@ -432,7 +452,10 @@ func updateContent(content string, title string)bool{
 	}
 	return true
 }
-
+/** 
+* AddFriend
+* * Add Someone as a friend by inserting him into the Follower DataBase 
+*/
 func AddFriend(follower string, following string)bool{
 	postgresconnection := initConnection()
 	db,err := sql.Open("postgres", postgresconnection)
@@ -448,6 +471,11 @@ func AddFriend(follower string, following string)bool{
 	}
 	return true
 }
+
+/** 
+* AddFriend
+* * Add An Article to a Reading List
+*/
 func AddReadingList(Author string, title string, username string)bool{
 	postgresconnection := initConnection()
 	db,err := sql.Open("postgres", postgresconnection)
@@ -464,6 +492,10 @@ func AddReadingList(Author string, title string, username string)bool{
 	return true
 }
 
+/** 
+* AddFriend
+* * Return the Articles in the Reading List of a User
+*/
 func getReadingList(username string)[]string{
 	postgresconnection := initConnection()
 	db,err := sql.Open("postgres", postgresconnection)
@@ -486,6 +518,26 @@ func getReadingList(username string)[]string{
 		}
 	return Titles
 }
+/** 
+* AddFriend
+* * Check if a user exisits or not 
+*/
+func checkuserExists(username string)bool{
+	postgresconnection := initConnection()
+	db,err := sql.Open("postgres",postgresconnection) 
+	if err != nil {
+		panic(err)
+	  }	
+	  sqlStatement := `Select username from Users where username= $1`
+	  //hashedpassword := hash(password)
+	  row,err := db.Query(sqlStatement,username)
+	  if(err != nil){
+		  panic(err)
+
+	  }
+	  flag := row.Next()
+	  return flag
+}
 func isFollowClicked(value string)bool{
 	if len(value) > 0{
 		return true
@@ -502,8 +554,8 @@ func isFavoriteClicked(title string)bool{
 func main() {
 	mux := mux.NewRouter()
 	mux.HandleFunc("/Home",HomeHandler)
-	mux.HandleFunc("/profile",ProfileHandler)
-	mux.HandleFunc("/edit/{title}",ProfileHandler)
+	mux.HandleFunc("/profile/{name}",YourProfileHandler)
+	mux.HandleFunc("/edit/{title}",YourProfileHandler)
 	mux.HandleFunc("/write",WriteArticleHandler)
 	mux.HandleFunc("/Signup",SignupHandler)
 	mux.HandleFunc("/login",LoginHandler )
